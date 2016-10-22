@@ -1,5 +1,3 @@
-#!/bin/bash
-
 set -f
 
 declare -r JSON_STRING='"(([^"\]|\\["\/bfnrt]|\\u[[:xdigit:]]{4})*)"'
@@ -83,10 +81,3 @@ parseJson() {
   json_readValue "." < <(json_split)
   return "$?"
 }
-
-declare -A output=()
-parseJson output <test1.json
-
-for key in "${!output[@]}"; do
-  printf "%s: %s\n" "$key" "${output[$key]}"
-done
