@@ -13,7 +13,11 @@ checkInstall() {
     git=$(git rev-parse --git-dir)
     [[ "$git" == ".git" ]]
   ) 
-  return $?
+  local ret="$?"
+  if [[ "$ret" != 0 ]]; then
+    printf "Error: you have not initialized bvimp. Call \`bvimp init\` to fix this.\n" >&2
+  fi
+  return $ret
 }
 
 bvimp_init() {
@@ -116,13 +120,16 @@ main() {
     local command="$1"
     case "$command" in
       add)
+        checkInstall || exit 1
         bvimp_add "$2"
         ;;
       remove)
+        checkInstall || exit 1
         bvimp_remove "$2"
         ;;
       update)
         # TODO single package update
+        checkInstall || exit 1
         bvimp_update
         ;;
       init)
