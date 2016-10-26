@@ -1,0 +1,141 @@
+#!/bin/bash
+
+source "json.bash"
+
+declare -r REPOSITORY_REGEX='^([a-zA-Z0-9_-]+)/([a-zA-Z0-9_.-]+)$'
+declare -r NAME_REGEX='^[a-zA-Z0-9_-]+$'
+declare BVIMP_HOME="$HOME/.vim/pack/bvimp"
+
+checkInstall() {
+  (
+    set -e
+    cd "$BVIMP_HOME"
+    git=$(git rev-parse --git-dir)
+    [[ "$git" == ".git" ]]
+  ) 
+  return $?
+}
+
+bvimp_init() {
+  {
+    mkdir -p "$BVIMP_HOME"
+    (
+      cd "$BVIMP_HOME"
+      git init
+    )
+  }
+}
+
+bvimp_add() {
+  local -r target="$1"
+  if [[ "$target" =~ $REPOSITORY_REGEX ]]; then
+    local user="${BASH_REMATCH[1]}"
+    local repository="${BASH_REMATCH[2]}"
+
+    local -A queryResults=()
+    local tmpFile="$(mktemp -t 'bvimp.XXXX.json')"
+    local code="$(curl -s -w '%{http_code}' -o "$tmpFile" "https://api.github.com/repos/$target")"
+
+    if [[ "$code" == 200 ]]; then
+      local repoName="$repository@$user"
+      local repoPath="start/$repoName"
+      parseJson queryResults <"$tmpFile" 
+      rm "$tmpFile"
+      if [[ -d "$BVIMP_HOME/$repoPath" ]]; then
+        # TODO desired behaviour is probably update
+        printf "Package named %s already exists\n" "$target" >&2
+        return 1
+      fi
+      (
+        cd "$BVIMP_HOME"
+        # TODO this can fail...
+        git submodule add "${queryResults[./clone_url]}" "$repoPath"
+        git add "$repoPath" .gitmodules
+        git commit -q -m "Adding $repoName" 
+      )
+    elif [[ "$code" == 404 ]]; then
+      printf "Package not found: %s\n" "$target" >&2
+      rm "$tmpFile"
+      return 1
+    fi
+  else
+    printf "Invalid package name: %s\n" "$target" >&2
+    return 1
+  fi
+}
+
+bvimp_remove() {
+  local -r target="$1"
+  if [[ "$target" =~ $REPOSITORY_REGEX ]]; then
+    local user="${BASH_REMATCH[1]}"
+    local repository="${BASH_REMATCH[2]}"
+
+    local repoName="$repository@$user"
+    local repoPath="start/$repoName"
+    if [[ ! -d "$BVIMP_HOME/$repoPath" ]]; then
+      printf "Package not found: %s\n" "$target" >&2
+      return 1
+    fi
+    (
+      cd "$BVIMP_HOME"
+      # TODO this can fail...
+      git submodule deinit "$repoPath"
+      git rm "$repoPath"
+      git commit -q -m "Removing $repoName" 
+      rm -rf ".git/modules/$repoPath"
+    )
+  else
+    printf "Invalid package name: %s\n" "$target" >&2
+    return 1
+  fi
+  
+}
+
+bvimp_update() {
+  (
+    cd "$BVIMP_HOME"
+    # TODO this can fail...
+    git submodule update --remote --merge
+    git commit -q -m "Updating packages" 
+  )
+  
+}
+
+main() {
+  if [[ "$#" -gt 0 ]]; then
+    # TODO command parsing
+    #
+    # The final architecture of this program should be something that separates
+    # the components of command parsing, querying metadata, and actually
+    # modifying the filesystem.
+    #
+    # First compile all of the passed parameters into a list of packages. Then
+    # determine the current state of those packages, as well as their full
+    # names and clone urls. Then finally use dumb update methods that just add,
+    # remove, and update submodules using source and destination parameters.
+    local command="$1"
+    case "$command" in
+      add)
+        bvimp_add "$2"
+        ;;
+      remove)
+        bvimp_remove "$2"
+        ;;
+      update)
+        # TODO single package update
+        bvimp_update
+        ;;
+      init)
+        bvimp_init
+        ;;
+      *)
+        printf "Command not found: %s\n" "$command" >&2
+        ;;
+    esac
+    return "$?"
+  else
+    printf "TODO help\n" >&2
+  fi
+}
+
+main "$@"
