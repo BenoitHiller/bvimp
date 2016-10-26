@@ -2,6 +2,8 @@
 
 Bash tool for managing vim 8 packages.
 
+Pronounced like blimp.
+
 ## Warning
 
 This is not at all finished. It may currently be able to add and remove packages, but I in no way guarantee that it works, or that any part of it that works now won't be broken later to extend functionality.
