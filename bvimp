@@ -128,6 +128,11 @@ bvimp_update() {
   
 }
 
+bvimp_list() {
+  git config --file "$BVIMP_HOME/.gitmodules" --get-regexp url\$ \
+    | awk '{ printf("%s\t%s\n", gensub(/.*\/([^\/@]+)@([^\/@]+)\.url$/, "\\2/\\1", 1, $1), $2) }'
+}
+
 main() {
   local -A packageStrings
   local -A invalidPackages
@@ -162,6 +167,10 @@ main() {
         # TODO single package update
         checkInstall || exit 1
         bvimp_update
+        ;;
+      list)
+        checkInstall || exit 1
+        bvimp_list
         ;;
       init)
         bvimp_init
