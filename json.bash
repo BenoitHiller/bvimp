@@ -24,6 +24,7 @@ json_readArray() {
     json_readValue "$1/$((index++))"
     read -r token
     if [[ "$token" == "]" ]]; then
+      _output["$1/#"]="$index"
       return 0
     elif [[ "$token" != "," ]]; then
       return 1
