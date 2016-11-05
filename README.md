@@ -16,13 +16,21 @@ Before using the program you have to call `bvimp init`.
 
 To install the package in the github repository `user/repository` use the command:
 
-    bvimp add user/repository
+    bvimp add [user/]repository
 
 This will install the package by setting up the repository as a submodule in `~/.vim/pack/bvimp`.
 
+If you do not specify the user bvimp will query github for repositories with the specified name and will prompt you with a selection.
+
 You can later remove the same package by calling:
 
-    bvimp remove user/repository
+    bvimp remove [user/]repository
+
+It will similarly search your installed packages if you only provide the repository name.
+
+If you want to search git for repositories with a given name you can use the find command.
+
+    bvimp find repository
 
 If you want to update packages call:
 
