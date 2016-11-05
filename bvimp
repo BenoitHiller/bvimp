@@ -1,10 +1,40 @@
 #!/bin/bash
 
+set -f
+
 source "json.bash"
 
 declare -r REPOSITORY_REGEX='^([a-zA-Z0-9_-]+)/([a-zA-Z0-9_.-]+)$'
 declare -r NAME_REGEX='^[a-zA-Z0-9_-]+$'
 declare BVIMP_HOME="$HOME/.vim/pack/bvimp"
+
+getLocalPackageData() {
+  local user
+  local repository
+  for package in "$@"; do
+    if [[ -z "${packageStrings[$package]+_}" ]]; then
+      if [[ "$package" =~ $REPOSITORY_REGEX ]]; then
+        user="${BASH_REMATCH[1]}"
+        repository="${BASH_REMATCH[2]}"
+
+        packageStrings["$package"]="$repository@$user"
+      else
+        invalidPackages["$package"]="Invalid Package specified"
+      fi
+    fi
+  done
+}
+
+validatePackageData() {
+  for package in "${!invalidPackages[@]}"; do
+    printf "%s: %s\n" "${invalidPackages[$package]}" "$package" >&2
+  done
+
+  if [[ "${#invalidPackages[@]}" -gt 0 ]]; then
+    printf "No packages installed\n" >&2
+    return 1
+  fi
+}
 
 checkInstall() {
   (
@@ -31,18 +61,19 @@ bvimp_init() {
 }
 
 bvimp_add() {
-  local -r target="$1"
-  if [[ "$target" =~ $REPOSITORY_REGEX ]]; then
-    local user="${BASH_REMATCH[1]}"
-    local repository="${BASH_REMATCH[2]}"
-
-    local -A queryResults=()
-    local tmpFile="$(mktemp -t 'bvimp.XXXX.json')"
-    local code="$(curl -s -w '%{http_code}' -o "$tmpFile" "https://api.github.com/repos/$target")"
+  local -A queryResults
+  local tmpFile
+  local code
+  local repoName
+  local repoPath
+  for target in "${!packageStrings[@]}"; do
+    queryResults=()
+    tmpFile="$(mktemp -t 'bvimp.XXXX.json')"
+    code="$(curl -s -w '%{http_code}' -o "$tmpFile" "https://api.github.com/repos/$target")"
 
     if [[ "$code" == 200 ]]; then
-      local repoName="$repository@$user"
-      local repoPath="start/$repoName"
+      repoName="${packageStrings[$target]}"
+      repoPath="start/$repoName"
       parseJson queryResults <"$tmpFile" 
       rm "$tmpFile"
       if [[ -d "$BVIMP_HOME/$repoPath" ]]; then
@@ -62,20 +93,16 @@ bvimp_add() {
       rm "$tmpFile"
       return 1
     fi
-  else
-    printf "Invalid package name: %s\n" "$target" >&2
-    return 1
-  fi
+  done
 }
 
 bvimp_remove() {
-  local -r target="$1"
-  if [[ "$target" =~ $REPOSITORY_REGEX ]]; then
-    local user="${BASH_REMATCH[1]}"
-    local repository="${BASH_REMATCH[2]}"
+  local repoName
+  local repoPath
+  for target in "${!packageStrings[@]}"; do
 
-    local repoName="$repository@$user"
-    local repoPath="start/$repoName"
+    repoName="${packageStrings[$target]}"
+    repoPath="start/$repoName"
     if [[ ! -d "$BVIMP_HOME/$repoPath" ]]; then
       printf "Package not found: %s\n" "$target" >&2
       return 1
@@ -88,11 +115,7 @@ bvimp_remove() {
       git commit -q -m "Removing $repoName" 
       rm -rf ".git/modules/$repoPath"
     )
-  else
-    printf "Invalid package name: %s\n" "$target" >&2
-    return 1
-  fi
-  
+  done
 }
 
 bvimp_update() {
@@ -100,12 +123,14 @@ bvimp_update() {
     cd "$BVIMP_HOME"
     # TODO this can fail...
     git submodule update --remote --merge
-    git commit -q -m "Updating packages" 
+    git commit -a -q -m "Updating packages" 
   )
   
 }
 
 main() {
+  local -A packageStrings
+  local -A invalidPackages
   if [[ "$#" -gt 0 ]]; then
     # TODO command parsing
     #
@@ -121,11 +146,17 @@ main() {
     case "$command" in
       add)
         checkInstall || exit 1
-        bvimp_add "$2"
+        shift
+        getLocalPackageData "$@"
+        validatePackageData || exit 1
+        bvimp_add
         ;;
       remove)
         checkInstall || exit 1
-        bvimp_remove "$2"
+        shift
+        getLocalPackageData "$@"
+        validatePackageData || exit 1
+        bvimp_remove
         ;;
       update)
         # TODO single package update
