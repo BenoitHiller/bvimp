@@ -148,6 +148,7 @@ getLocalPackageData() {
                 return 1
               elif [[ "$response" =~ $NUMBER_REGEX ]]; then
                 package="${order[$response]}"
+                break
               fi
             else
               continue 2
@@ -179,6 +180,46 @@ validatePackageData() {
 
   if [[ "${#invalidPackages[@]}" -gt 0 ]]; then
     printf "No packages modified\n" >&2
+    return 1
+  fi
+}
+
+verifyAdd() {
+  if [[ "${#packageStrings[@]}" -gt 0 ]]; then
+    printf "%d package(s) selected for installation:\n" "${#packageStrings[@]}" >&0
+    printf "\t%s\n" "${!packageStrings[@]}" >&2
+    printf "\n" >&2
+    printf "Proceed with installation? [yn](default: y):"
+    if read -r response; then
+      if [[ "$response" == [yY] || -z "$response" ]]; then
+        return 0
+      else
+        return 1
+      fi
+    fi
+    return 1
+  else
+    printf "No packages specified, nothing to do.\n" >&2
+    return 1
+  fi
+}
+
+verifyRemove() {
+  if [[ "${#packageStrings[@]}" -gt 0 ]]; then
+    printf "%d package(s) selected for removal:\n" "${#packageStrings[@]}" >&0
+    printf "\t%s\n" "${!packageStrings[@]}" >&2
+    printf "\n" >&2
+    printf "Proceed with removal? [yn](default: y):"
+    if read -r response; then
+      if [[ "$response" == [yY] || -z "$response" ]]; then
+        return 0
+      else
+        return 1
+      fi
+    fi
+    return 1
+  else
+    printf "No packages specified, nothing to do.\n" >&2
     return 1
   fi
 }
@@ -356,6 +397,7 @@ main() {
         getLocalPackageData "$@"
         [[ $? == 0 ]] || exit 1
         validatePackageData || exit 1
+        verifyAdd || exit 1
         bvimp_add
         ;;
       remove)
@@ -364,6 +406,7 @@ main() {
         LOCAL=true getLocalPackageData "$@"
         [[ $? == 0 ]] || exit 1
         validatePackageData || exit 1
+        verifyRemove || exit 1
         bvimp_remove
         ;;
       update)
