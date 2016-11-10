@@ -9,7 +9,6 @@ declare -r JSON_LITERAL='(true|false|null)'
 declare -r REPOSITORY_REGEX='^([a-zA-Z0-9_-]+)/([a-zA-Z0-9_.-]+)$'
 declare -r NAME_REGEX='^[a-zA-Z0-9_.-]+$'
 declare -r NUMBER_REGEX='^0|[1-9][0-9]*$'
-declare BVIMP_HOME="$HOME/.vim/pack/bvimp"
 
 json_readObject() {
   while read -r token; do
@@ -370,6 +369,8 @@ bvimp_find() {
 }
 
 main() {
+  local BVIMP_HOME="${BVIMP_HOME-$HOME/.vim/pack/bvimp}"
+
   local -A packageStrings
   local -A invalidPackages
   local interactive
