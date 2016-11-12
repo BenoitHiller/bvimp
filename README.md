@@ -35,3 +35,11 @@ If you want to search git for repositories with a given name you can use the fin
 If you want to update packages call:
 
     bvimp update
+
+To list all of the currently installed packages use:
+
+    bvimp list
+
+## Configuration
+
+It is possible to specify the directory where bvimp installs packages. It reads this value from the environment variable `BVIMP_HOME` which by default is `$HOME/.vim/pack/bvimp`.
