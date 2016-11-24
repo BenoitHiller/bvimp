@@ -97,6 +97,10 @@ getLocalPackageData() {
   local -a order
   for package in "$@"; do
     if "$interactive" && [[ "$package" =~ $NAME_REGEX ]]; then
+      if "$autoconfirm"; then
+        invalidPackages["$package"]="Package name not specified in full"
+        break
+      fi
       if "$LOCAL"; then
         order=( $(git config --file "$BVIMP_HOME/.gitmodules" --get-regexp "/$package"'@[^@\/]+.path$'  | awk '{print gensub(/^start\/([^@]+)@(.*)/, "\\2/\\1", 1, $2)}') )
         if [[ "${#order[@]}" -gt 0 ]]; then
@@ -185,6 +189,9 @@ validatePackageData() {
 
 verifyAdd() {
   if [[ "${#packageStrings[@]}" -gt 0 ]]; then
+    if "$autoconfirm"; then
+      return 0;
+    fi
     printf "%d package(s) selected for installation:\n" "${#packageStrings[@]}" >&0
     printf "\t%s\n" "${!packageStrings[@]}" >&2
     printf "\n" >&2
@@ -205,6 +212,9 @@ verifyAdd() {
 
 verifyRemove() {
   if [[ "${#packageStrings[@]}" -gt 0 ]]; then
+    if "$autoconfirm"; then
+      return 0;
+    fi
     printf "%d package(s) selected for removal:\n" "${#packageStrings[@]}" >&0
     printf "\t%s\n" "${!packageStrings[@]}" >&2
     printf "\n" >&2
@@ -379,9 +389,48 @@ main() {
   else
     interactive=false
   fi
-  if [[ "$#" -gt 0 ]]; then
-    # TODO command parsing
-    #
+
+  local silent=false
+  local autoconfirm=false
+
+  local -a vargs
+  local -a args=( "$@" )
+
+  while [[ "$OPTIND" -le "${#args[@]}" ]]; do
+    while getopts ":sy" option "${args[@]}"; do
+      case "$option" in
+        s)
+          silent=true
+          autoconfirm=true
+          ;;
+        y)
+          autoconfirm=true
+          ;;
+        \?)
+          printf "Invalid option: -%s\n" "$OPTARG" >&2
+          exit 1
+          ;;
+      esac
+    done
+    if [[ "$OPTIND" -le "${#args[@]}" ]]; then
+      if [[ "$OPTIND" -gt 1 && "${args[$OPTIND-2]}" == "--" ]]; then
+        for ((i=OPTIND-1; i < "${#args[@]}"; i++)); do
+          vargs+=( "${args[$i]}" )
+        done
+        # break both parse loops after getting all remaining varargs
+        break 2
+      else
+        vargs+=( "${args[$OPTIND-1]}" )
+      fi
+    fi
+    OPTIND+=1
+  done
+
+  if "$silent"; then
+    exec 1>/dev/null 2>/dev/null
+  fi
+
+  if [[ "${#vargs[@]}" -gt 0 ]]; then
     # The final architecture of this program should be something that separates
     # the components of command parsing, querying metadata, and actually
     # modifying the filesystem.
@@ -390,12 +439,11 @@ main() {
     # determine the current state of those packages, as well as their full
     # names and clone urls. Then finally use dumb update methods that just add,
     # remove, and update submodules using source and destination parameters.
-    local command="$1"
+    local command="${vargs[0]}"
     case "$command" in
       add)
         checkInstall || exit 1
-        shift
-        getLocalPackageData "$@"
+        getLocalPackageData "${vargs[@]:1}"
         [[ $? == 0 ]] || exit 1
         validatePackageData || exit 1
         verifyAdd || exit 1
@@ -403,8 +451,7 @@ main() {
         ;;
       remove)
         checkInstall || exit 1
-        shift
-        LOCAL=true getLocalPackageData "$@"
+        LOCAL=true getLocalPackageData "${vargs[@]:1}"
         [[ $? == 0 ]] || exit 1
         validatePackageData || exit 1
         verifyRemove || exit 1
@@ -420,8 +467,7 @@ main() {
         bvimp_list
         ;;
       find)
-        shift
-        bvimp_find "$1"
+        bvimp_find "${vargs[1]}"
         ;;
       init)
         bvimp_init
