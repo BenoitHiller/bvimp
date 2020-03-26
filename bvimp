@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -f
 
@@ -9,6 +9,10 @@ declare -r JSON_LITERAL='(true|false|null)'
 declare -r REPOSITORY_REGEX='^([a-zA-Z0-9_-]+)/([a-zA-Z0-9_.-]+)$'
 declare -r NAME_REGEX='^[a-zA-Z0-9_.-]+$'
 declare -r NUMBER_REGEX='^0|[1-9][0-9]*$'
+
+curl_with_auth() {
+  curl -H "Authorization: token $GITHUB_TOKEN" "$@"
+}
 
 json_readObject() {
   while read -r token; do
@@ -266,7 +270,7 @@ bvimp_add() {
   for target in "${!packageStrings[@]}"; do
     queryResults=()
     tmpFile="$(mktemp -t 'bvimp.XXXX.json')"
-    code="$(curl -s -w '%{http_code}' -o "$tmpFile" "https://api.github.com/repos/$target")"
+    code="$(curl_with_auth -s -w '%{http_code}' -o "$tmpFile" "https://api.github.com/repos/$target")"
 
     if [[ "$code" == 200 ]]; then
       repoName="${packageStrings[$target]}"
@@ -309,7 +313,7 @@ bvimp_remove() {
       cd "$BVIMP_HOME"
       # TODO this can fail...
       git submodule deinit "$repoPath"
-      git rm "$repoPath"
+      git rm -f "$repoPath"
       git commit -q -m "Removing $repoName" 
       rm -rf ".git/modules/$repoPath"
     )
@@ -344,7 +348,7 @@ bvimp_findRepos() {
   local -A queryResults=()
 
   tmpFile="$(mktemp -t 'bvimp.XXXX.json')"
-  code="$(curl -s -w '%{http_code}' -o "$tmpFile" "https://api.github.com/search/repositories?q=$repository+in:name")"
+  code="$(curl_with_auth -s -w '%{http_code}' -o "$tmpFile" "https://api.github.com/search/repositories?q=$repository+in:name")"
   parseJson queryResults <"$tmpFile" 
   rm "$tmpFile"
   if [[ "$code" == 200 ]]; then
